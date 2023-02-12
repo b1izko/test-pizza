@@ -1,0 +1,45 @@
+display_information:
+  name: Pizza Bot
+features:
+  bot_user:
+    display_name: Pizza Bot
+    always_online: true
+  slash_commands:
+    - command: /name
+      description: Pizza name
+      should_escape: false
+    - command: /size
+      description: Pizza size
+      should_escape: false
+    - command: /dough
+      description: Pizza dough
+      should_escape: false
+    - command: /extra
+      description: Pizza extra toppings
+      should_escape: false
+    - command: /address
+      description: Delivery address
+      should_escape: false
+    - command: /comment
+      description: Comment for the order
+      should_escape: false
+    - command: /help
+      description: Learn more about bot commands
+      should_escape: false
+    - command: /accept
+      description: Confirm your order
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - commands
+      - im:read
+      - im:write
+      - im:history
+settings:
+  interactivity:
+    is_enabled: true
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false

@@ -1,0 +1,19 @@
+{
+  "name": "pizza-bot",
+  "version": "0.1.0",
+  "description": "",
+  "private": true,
+  "scripts": {
+    "start": "ts-node index.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@slack/bolt": "^3.10.0",
+    "amqplib": "^0.10.3",
+    "ts-node": "^10.7.0"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.1"
+  }
+}
