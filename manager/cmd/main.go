@@ -1,37 +1,41 @@
 package main
 
 import (
-	"log"
+	"github.com/b1izko/test-pizza/internal/logger"
+	"github.com/b1izko/test-pizza/manager/internal/config"
+	srv "github.com/b1izko/test-pizza/manager/internal/server"
 
-	srv "github.com/b1izko/test-pizza/manager/internal"
-	"github.com/b1izko/test-pizza/manager/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 var (
-	Port         = ":3500"
-	DataBaseAddr = "mongodb://localhost:27017"
-	DataBaseName = "pizza"
+	conf = config.New().Load()
 )
 
 func main() {
 
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	utils.FailOnError(err, "Failed to connect to RabbitMQ")
+	conn, err := amqp.Dial(conf.RabbitMQ.URL)
+	if logger.IsError(err, "Failed to connect to RabbitMQ") {
+		panic(err)
+	}
 	defer conn.Close()
 
 	ch, err := conn.Channel()
-	utils.FailOnError(err, "Failed to open a channel")
+	if logger.IsError(err, "Failed to open a channel") {
+		panic(err)
+	}
 	defer ch.Close()
 
+	conf = config.New().Load()
 	svc := srv.New(&srv.Config{
-		ListenAddress: Port,
-		DBName:        DataBaseName,
-		DBUrl:         DataBaseAddr,
+		ListenAddress: conf.Port,
+		DBName:        conf.MongoDB.Name,
+		DBUrl:         conf.MongoDB.URL,
 	}, ch)
 
-	if err := svc.Start(); err != nil {
-		log.Fatalf("Cannot start service: %v", err)
+	err = svc.Start()
+	if logger.IsError(err, "Cannot start service") {
+		panic(err)
 	}
 
 	defer svc.Close()

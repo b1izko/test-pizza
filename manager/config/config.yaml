@@ -1,0 +1,9 @@
+
+# RabbitMQ configuration
+rabbitmq:
+  url: 'amqp://guest:guest@localhost:5672/'
+
+# MongoDB configuration
+mongodb:
+  url: 'mongodb://localhost:27017'
+  name: 'pizza'

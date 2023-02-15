@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/b1izko/test-pizza/internal/logger"
 	"github.com/b1izko/test-pizza/manager/store"
 	"github.com/pkg/errors"
 
@@ -34,14 +35,14 @@ type Model struct {
 func (m *Model) UnmarshalJSON(j []byte) error {
 	var rawStrings map[string]interface{}
 	err := json.Unmarshal(j, &rawStrings)
-	if err != nil {
+	if logger.IsError(err, "Failed to unmarshal JSON") {
 		return err
 	}
 
 	for k, v := range rawStrings {
 		if strings.ToLower(k) == "id" {
 			m.ID, err = primitive.ObjectIDFromHex(v.(string))
-			if err != nil {
+			if logger.IsError(err, "Failed to unmarshal JSON") {
 				return err
 			}
 		}
@@ -58,7 +59,7 @@ func (m *Model) UnmarshalJSON(j []byte) error {
 	}
 
 	err = json.Unmarshal(j, &buffer)
-	if err != nil {
+	if logger.IsError(err, "Failed to unmarshal JSON") {
 		return err
 	}
 	m.User = buffer.User
@@ -105,7 +106,7 @@ func (m *Model) Save(store store.Storage) error {
 	}
 
 	result, err := store.Database().Collection(CollectionName).UpdateOne(ctx, f, bson.M{"$set": m}, options.Update().SetUpsert(true))
-	if err != nil {
+	if logger.IsError(err, "Failed to save a order") {
 		return err
 	}
 
@@ -119,16 +120,20 @@ func (m *Model) Save(store store.Storage) error {
 func (m *Model) Remove(store store.Storage) error {
 
 	if m.ID.IsZero() {
-		return errors.New("Order not found")
+		err := errors.New("Order not found")
+		logger.IsError(err, "Failed to remove a order")
+		return err
 	}
 
 	result, err := store.Database().Collection(CollectionName).DeleteOne(ctx, bson.M{"_id": m.ID})
-	if err != nil {
+	if logger.IsError(err, "Failed to remove a order") {
 		return err
 	}
 
 	if result.DeletedCount == 0 {
-		return errors.New("Order not deleted")
+		err := errors.New("Order not deleted")
+		logger.IsError(err, "Failed to remove order")
+		return err
 	}
 
 	return nil
@@ -137,12 +142,13 @@ func (m *Model) Remove(store store.Storage) error {
 // ByID returns order by ID
 func ByID(id string, store store.Storage) (*Model, error) {
 	_id, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, errors.WithMessage(err, "cannot parse ID")
+	if logger.IsError(err, "Failed to parse the order by ID") {
+		return nil, err
 	}
 
 	var order Model
-	if err := store.Database().Collection(CollectionName).FindOne(ctx, bson.M{"_id": _id}).Decode(&order); err != nil {
+	err = store.Database().Collection(CollectionName).FindOne(ctx, bson.M{"_id": _id}).Decode(&order)
+	if logger.IsError(err, "Failed to parse the order by ID") {
 		return nil, err
 	}
 
@@ -152,7 +158,8 @@ func ByID(id string, store store.Storage) (*Model, error) {
 // ByUser returns order by user ID
 func ByUser(user string, store store.Storage) (*Model, error) {
 	var order Model
-	if err := store.Database().Collection(CollectionName).FindOne(ctx, bson.M{"user": user}).Decode(&order); err != nil {
+	err := store.Database().Collection(CollectionName).FindOne(ctx, bson.M{"user": user}).Decode(&order)
+	if logger.IsError(err, "Failed to parse the order by user") {
 		return nil, err
 	}
 

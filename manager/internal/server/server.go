@@ -1,4 +1,4 @@
-package manager
+package server
 
 import (
 	"log"
@@ -7,11 +7,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/b1izko/test-pizza/internal/logger"
 	"github.com/b1izko/test-pizza/manager/internal/handler"
 	"github.com/b1izko/test-pizza/manager/store"
 	"github.com/b1izko/test-pizza/manager/store/admin"
 	"github.com/b1izko/test-pizza/manager/store/order"
-	"github.com/b1izko/test-pizza/manager/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/pkg/errors"
@@ -71,7 +71,9 @@ func (s *Server) Start() error {
 		false, // no-wait
 		nil,   // arguments
 	)
-	utils.FailOnError(err, "Failed to declare a queue")
+	if logger.IsError(err, "Failed to declare a queue") {
+		return err
+	}
 
 	msgs, err := s.ch.Consume(
 		q.Name, // queue
@@ -83,29 +85,31 @@ func (s *Server) Start() error {
 		nil,    // args
 	)
 
-	utils.FailOnError(err, "Failed to register a consumer")
+	if logger.IsError(err, "Failed to register a consumer") {
+		return err
+	}
 
 	var forever chan struct{}
 
 	go func() {
-		if err := s.store.Connect(); err != nil {
-			log.Println("Init error ", err)
+		err := s.store.Connect()
+		if logger.IsError(err, "Start error") {
+			panic(err)
 		}
 
 		for d := range msgs {
+			//debug
 			log.Printf("Received a message: %s", d.Body)
 
 			var order order.Model
 			err = order.UnmarshalJSON(d.Body)
-
-			if err != nil {
-				utils.FailOnError(err, "Failed to parse message")
-				return
+			if logger.IsError(err, "Failed to parse message") {
+				panic(err)
 			}
 
-			if err := order.Save(s.store); err != nil {
-				utils.FailOnError(err, "Failed to save order")
-				return
+			err := order.Save(s.store)
+			if logger.IsError(err, "Failed to save order") {
+				panic(err)
 			}
 		}
 	}()
@@ -121,8 +125,9 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) init() {
-	if err := s.store.Connect(); err != nil {
-		log.Println("Init error ", err)
+	err := s.store.Connect()
+	if logger.IsError(err, "Init error ") {
+		panic(err)
 	}
 
 	root := &admin.Model{
@@ -132,16 +137,18 @@ func (s *Server) init() {
 		LastAuth: time.Now(),
 	}
 
-	if err := root.Save(s.store); err != nil {
-		log.Println("Init error ", err)
+	err = root.Save(s.store)
+	if logger.IsError(err, "Init error") {
+		panic(err)
 	}
 }
 
 func (s *Server) serve() {
 	defer s.wg.Done()
 
-	if err := s.srv.ListenAndServe(); err != nil {
-		log.Println("Listen error ", err)
+	err := s.srv.ListenAndServe()
+	if logger.IsError(err, "Listen error") {
+		panic(err)
 	}
 
 	select {
@@ -168,7 +175,9 @@ main:
 // Close server
 func (s *Server) Close() error {
 	if atomic.LoadInt32(&s.run) == 0 {
-		return errors.New("not started")
+		err := errors.New("not started")
+		logger.IsError(err, "Listen error")
+		return err
 	}
 
 	select {

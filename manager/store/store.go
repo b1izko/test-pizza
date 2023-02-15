@@ -2,9 +2,9 @@ package store
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"github.com/b1izko/test-pizza/internal/logger"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -32,8 +32,7 @@ func New(URL, Username, Password, DBName string) (*Store, error) {
 	//	Password: Password,
 	//}))
 
-	if err != nil {
-		log.Fatal(err)
+	if logger.IsError(err, "Failed to create a new storage") {
 		return nil, err
 	}
 
@@ -51,18 +50,16 @@ func (s *Store) Database() *mongo.Database {
 	return s.client.Database(s.DBName)
 }
 
-// Connect to database
+// Connect to the database
 func (s *Store) Connect() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	err := s.client.Connect(ctx)
-	if err != nil {
-		log.Fatal(err)
+	if logger.IsError(err, "Failed to create a new storage") {
 		return err
 	}
 	err = s.client.Ping(context.TODO(), nil)
-	if err != nil {
-		log.Fatal(err)
+	if logger.IsError(err, "Failed to create a new storage") {
 		return err
 	}
 

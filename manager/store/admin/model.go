@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/b1izko/test-pizza/internal/logger"
 	"github.com/b1izko/test-pizza/manager/store"
 
 	"github.com/dgrijalva/jwt-go"
@@ -42,14 +43,14 @@ type Model struct {
 func (m *Model) UnmarshalJSON(j []byte) error {
 	var rawStrings map[string]interface{}
 	err := json.Unmarshal(j, &rawStrings)
-	if err != nil {
+	if logger.IsError(err, "Failed to unmarshal JSON") {
 		return err
 	}
 
 	for k, v := range rawStrings {
 		if strings.ToLower(k) == "id" {
 			m.ID, err = primitive.ObjectIDFromHex(v.(string))
-			if err != nil {
+			if logger.IsError(err, "Failed to unmarshal JSON") {
 				return err
 			}
 		}
@@ -60,7 +61,7 @@ func (m *Model) UnmarshalJSON(j []byte) error {
 
 		if strings.ToLower(k) == "last_auth" {
 			t, err := time.Parse(TimeTemplate, v.(string))
-			if err != nil {
+			if logger.IsError(err, "Failed to unmarshal JSON") {
 				return err
 			}
 			m.LastAuth = t
@@ -74,7 +75,7 @@ func (m *Model) UnmarshalJSON(j []byte) error {
 	}
 
 	err = json.Unmarshal(j, &buffer)
-	if err != nil {
+	if logger.IsError(err, "Failed to unmarshal JSON") {
 		return err
 	}
 	m.Login = buffer.Login
@@ -109,7 +110,7 @@ func (m *Model) Save(store store.Storage) error {
 	}
 
 	result, err := store.Database().Collection(CollectionName).UpdateOne(ctx, f, bson.M{"$set": m}, options.Update().SetUpsert(true))
-	if err != nil {
+	if logger.IsError(err, "Failed to save a user") {
 		return err
 	}
 
@@ -123,98 +124,67 @@ func (m *Model) Save(store store.Storage) error {
 // Remove the model
 func (m *Model) Remove(store store.Storage) error {
 	if m.ID.IsZero() {
-		return errors.New("Invalid ID")
+		err := errors.New("User not found")
+		logger.IsError(err, "Failed to remove a user")
+		return err
 	}
 
 	if m.Login == "root" {
-		return errors.New("cannot remove root user")
+		err := errors.New("cannot remove root user")
+		logger.IsError(err, "Failed to remove a user")
+		return err
 	}
 
 	result, err := store.Database().Collection(CollectionName).DeleteOne(ctx, bson.M{"_id": m.ID})
-	if err != nil {
+	if logger.IsError(err, "Failed to remove a user") {
 		return err
 	}
 
 	if result.DeletedCount == 0 {
-		return errors.New("Delete error")
+		err := errors.New("User not deleted")
+		logger.IsError(err, "Failed to remove user")
+		return err
 	}
 
 	return nil
 }
 
-//ByID returns admin by ID
+// ByID returns admin by ID
 func ByID(id string, store store.Storage) (*Model, error) {
 	_id, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, errors.WithMessage(err, "cannot parse ID")
-	}
-
-	var usr Model
-	if err := store.Database().Collection(CollectionName).FindOne(ctx, bson.M{"_id": _id}).Decode(&usr); err != nil {
+	if logger.IsError(err, "Failed to parse the user by ID") {
 		return nil, err
 	}
 
-	return &usr, nil
+	var user Model
+	err = store.Database().Collection(CollectionName).FindOne(ctx, bson.M{"_id": _id}).Decode(&user)
+	if logger.IsError(err, "Failed to parse the user by ID") {
+		return nil, err
+	}
+
+	return &user, nil
 }
 
-//ByLogin returns admin by login
+// ByLogin returns admin by login
 func ByLogin(login string, store store.Storage) (*Model, error) {
-	var usr Model
-	if err := store.Database().Collection(CollectionName).FindOne(ctx, bson.M{"login": login}).Decode(&usr); err != nil {
+	var user Model
+	err := store.Database().Collection(CollectionName).FindOne(ctx, bson.M{"login": login}).Decode(&user)
+	if logger.IsError(err, "Failed to parse the user by login") {
 		return nil, err
 	}
 
-	return &usr, nil
-}
-
-//Find returns all model by filter
-func Find(store store.Storage, fltr *Model, offset, limit int64) ([]*Model, error) {
-
-	filter, err := makeFilter(fltr)
-	if err != nil {
-		return nil, err
-	}
-
-	cur, err := store.Database().Collection(CollectionName).Find(ctx, *filter)
-	if err != nil {
-		return nil, err
-	}
-
-	auth := []*Model{}
-
-	if err := cur.All(ctx, &auth); err != nil {
-		return nil, err
-	}
-
-	return auth, nil
-}
-
-// makeFilter returns filter for Collection.Find()
-func makeFilter(values *Model) (*bson.D, error) {
-	data, err := values.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-
-	filter := &bson.D{}
-	err = bson.Unmarshal(data, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	return filter, nil
-
+	return &user, nil
 }
 
 // Check return model for login:password
 func Check(login string, password string, store store.Storage) (*Model, error) {
 	model, err := ByLogin(login, store)
-	if err != nil {
-		return nil, errors.New("Wrong login")
+	if logger.IsError(err, "Wrong login/password") {
+		return nil, err
 	}
 
-	if model.Password != password {
-		return nil, errors.New("Wrong password")
+	if logger.IsError(err, "Wrong login/password") {
+		return nil, err
 	}
 
 	return model, nil
@@ -232,28 +202,9 @@ func (m *Model) GetJWT() (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(secretKey))
 
-	if err != nil {
+	if logger.IsError(err, "Getting a JWT ended unsuccessfully") {
 		return "", err
 	}
+
 	return tokenString, nil
-}
-
-// MakeFilter returns filter for Collection.Find()
-func MakeFilter(values *map[string]string) *bson.D {
-	filter := bson.D{}
-
-	var keys []string
-
-	for key := range *values {
-		keys = append(keys, key)
-	}
-
-	for _, key := range keys {
-		if (*values)[key] != "" {
-			if key != "offset" && key != "limit" {
-				filter = append(filter, bson.E{Key: key, Value: (*values)[key]})
-			}
-		}
-	}
-	return &filter
 }
