@@ -1,0 +1,5 @@
+# Slack bot configuration
+slack:
+ app_token: ""
+ bot_token: ""
+ sigint_secret: ""
